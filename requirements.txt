@@ -1,0 +1,33 @@
+# =============================================================================
+# requirements.txt
+# YouTube Channel Downloader – Python dependencies
+# =============================================================================
+#
+# Install with:
+#   pip install -r requirements.txt
+#
+# Notes:
+#   • openai-whisper requires PyTorch. Install torch FIRST from pytorch.org
+#     for your CUDA version if you want GPU acceleration.
+#   • ffmpeg must be installed separately and available on PATH.
+#     Windows: https://ffmpeg.org/download.html  (or: choco install ffmpeg)
+#     macOS:   brew install ffmpeg
+#     Linux:   sudo apt install ffmpeg
+# =============================================================================
+
+# ── UI framework ──────────────────────────────────────────────────────────────
+streamlit>=1.35.0
+
+# ── YouTube download & metadata extraction ────────────────────────────────────
+yt-dlp>=2024.1.1
+
+# ── Direct YouTube transcript fetcher ─────────────────────────────────────────
+youtube-transcript-api>=0.6.2
+
+# ── AI transcription fallback ─────────────────────────────────────────────────
+openai-whisper>=20231117
+
+# ── Whisper dependency (CPU version; replace with CUDA build for GPU) ─────────
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
