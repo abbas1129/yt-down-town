@@ -1,145 +1,59 @@
-# yt down town
+# Shorts Studio
 
-A production-ready **Streamlit** web app that scans a YouTube channel, filters videos by view count, downloads each qualifying video as **MP4**, and generates matching **transcript (.txt)** files — all with a premium dark-mode UI.
+A local Streamlit workflow for turning selected YouTube Shorts into narrated videos with your face-cam.
 
----
+## Workflow
 
-## ✨ Features
+1. Paste a full YouTube channel link. Scan public **Shorts only**, sort by views, and choose **10 million**, **5 million**, or a custom minimum.
+2. Select the Shorts to prepare. Download each MP4 with its audio included, and obtain a transcript through captions or local Whisper. No separate source-audio file is saved; Whisper may use a temporary audio file that is removed after transcription.
+3. Review and save the transcript. It is read as written; the app does not rewrite it into commentary or translate it.
+4. Enter your ElevenLabs API key and voice ID in the sidebar. Click **Generate voiceover** and listen to the audio.
+5. Upload and save your face-cam. Choose a layout, render a preview, then export the final MP4.
+6. Use **Batch voiceovers & final videos** to process multiple saved jobs with their saved transcripts and the selected face-cam/layout.
 
-| Feature | Detail |
-|---|---|
-| 🔍 Channel Scanning | Metadata-only scan via `yt-dlp` flat-playlist (no premature downloads) |
-| 👁️ View-Count Filter | User-defined threshold; default 1,000,000 views |
-| 📥 Video Download | MP4 at 1080p → 720p → best available; ffmpeg merging |
-| 📝 Auto Transcripts | YouTube captions (API) → Whisper AI fallback |
-| ⬇️ Direct Downloads | Download each MP4 and transcript directly from its result row |
-| 📂 Folder Access | One-click to open the output folder in Explorer |
-| 🎨 Premium UI | Dark mode, gradients, animated cards, live log console |
+## Run locally
 
----
+Requires Python 3.10+, ffmpeg/ffprobe, and a supported JavaScript runtime (Node 22+ or Deno). Windows WinGet ffmpeg installations are detected automatically.
 
-## 📁 Project Structure
-
-```
-yt-channel-downloader/
-├── app.py                  # Streamlit entry point
-├── requirements.txt
-├── .streamlit/
-│   └── config.toml         # Dark theme & server settings
-├── core/
-│   ├── __init__.py
-│   ├── session.py          # Session-state initialisation
-│   ├── scanner.py          # Channel metadata extraction (yt-dlp)
-│   ├── downloader.py       # MP4 video download (yt-dlp)
-│   ├── transcriber.py      # Transcript pipeline (API + Whisper)
-│   └── pipeline.py         # End-to-end orchestration
-└── ui/
-    ├── __init__.py
-    ├── styles.py           # Custom CSS injection
-    ├── sidebar.py          # Sidebar inputs + controls
-    └── dashboard.py        # Main dashboard, results, log
+```powershell
+python -m pip install -r requirements.txt
+python -m streamlit run app.py --server.address 127.0.0.1
 ```
 
----
+Open the local URL printed by Streamlit. The default port is 8501.
 
-## 🚀 Quick Start
+Enter `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` through environment variables or the app's sidebar. Keys are never stored in job manifests. Do not commit keys. The speech model is `eleven_multilingual_v2`, with MP3 output and a 10,000-character limit per request.
 
-### 1. Prerequisites
+Speech generation sends the saved transcript to ElevenLabs and uses account credits. No speech is generated on page load or render. Identical transcript/voice generations are reused. Requests are not automatically retried after a timeout because a request may already have been billed.
 
-- **Python 3.10+**
-- **ffmpeg** on PATH  
-  - Windows: `choco install ffmpeg` or download from [ffmpeg.org](https://ffmpeg.org/download.html)
-  - macOS: `brew install ffmpeg`
-  - Linux: `sudo apt install ffmpeg`
+## Layout and timing
 
-### 2. Install dependencies
+- **Vertical / face-cam below**: 1080 x 1920, source fitted in a centered panel, face-cam below.
+- **Vertical / overlay**: 1080 x 1920, source centered with face-cam in the bottom-right corner.
+- **Horizontal / beside**: 1920 x 1080, source in the main panel with face-cam alongside.
+- Previews use half the final dimensions and include the complete timeline.
+- Both source and face-cam audio are muted; only the generated narration is used.
+- Keep-source-speed mode preserves the full source and narration, holding the last source frame if narration runs longer. Short narration is padded with silence.
+- Fit mode adjusts source speed to narration duration. This fits total duration, not sentence-by-sentence synchronization.
+- Face-cam holds its last frame if short, unless you explicitly enable looping. Face-cam is cropped to fit its panel; source footage is fitted without cropping.
+- This app composites your recorded face-cam. It does not perform lip-sync or animate a face.
 
-```bash
-pip install -r requirements.txt
+## Saved projects
+
+Default output: `downloads/studio/<YouTube-video-ID>/`.
+
+Each job stores `job.json`, `source.mp4` (with its original audio), `transcript.txt`, editable `script.txt`, generated voiceovers, and preview/final MP4s. No separate source-audio output is created. Face-cams are stored under `downloads/studio/facecams/`. Existing jobs reload after restart. Video IDs avoid title collisions. Changing the saved transcript invalidates references to older voiceovers/renders without deleting those files. Changing layout, timing, or face-cam marks earlier renders as previous versions.
+
+The source downloader uses separate MP4 video and M4A audio when available, merged with ffmpeg, with a single-file MP4 fallback. Actual quality depends on YouTube's available formats. A failed download cannot be reported as success using an old output file.
+
+## Checks and limits
+
+```powershell
+python -m unittest discover -s tests -v
 ```
 
-> **GPU acceleration** (optional): Install PyTorch with CUDA support *before* the above command by following instructions at [pytorch.org](https://pytorch.org/get-started/locally/).  Whisper will automatically use the GPU if available.
+Tests cover scan failures, filtering, filename isolation behavior, script invalidation, ElevenLabs request/caching behavior, real ffmpeg layouts, full-resolution output, timing, and audio replacement. API tests use simulated responses and no account credits.
 
-### 3. Run the app
+YouTube can restrict downloads or captions. Whisper uses the local tiny model (downloaded on first use), and transcript accuracy should be reviewed. Jobs run sequentially in the current app session; saved stages survive restarts, but there is no background queue or mid-file resume. Keep the app connected while a stage is running. Face-cam uploads use Streamlit's 200 MB limit. A saved per-video output can be retried independently.
 
-```bash
-streamlit run app.py
-```
-
-The app opens at **http://localhost:8501**.
-
----
-
-## 🔧 Usage
-
-1. Paste a YouTube channel URL into the sidebar  
-   (supports `/@handle`, `/channel/UCxxx`, `/c/Name`, `/user/Name`)
-2. Set the **minimum view count** threshold (default: 1,000,000)
-3. Optionally change the **output directory** (defaults to `~/Downloads/YT_Downloads`)
-4. Click **🚀 Start Download**
-
-The app will:
-- Scan the entire channel (metadata only)
-- Filter & sort videos by view count
-- For each qualifying video:
-  - Download the MP4 (1080p preferred)
-  - Fetch the transcript via YouTube's caption API
-  - Fall back to Whisper AI transcription if captions are unavailable
-- Display a result card per video (✅ complete / ⚠️ partial / ❌ failed)
-- Offer direct **Download MP4** and **Download TXT** buttons per result
-
----
-
-## 📋 Output
-
-For each qualifying video you get two files with matching names:
-
-```
-YT_Downloads/
-├── My_Amazing_Video_Title.mp4
-├── My_Amazing_Video_Title.txt
-├── Another_Top_Video.mp4
-└── Another_Top_Video.txt
-```
-
----
-
-## ⚙️ Configuration
-
-| Setting | File | Key |
-|---|---|---|
-| Streamlit theme | `.streamlit/config.toml` | `[theme]` |
-| Server port | `.streamlit/config.toml` | `server.port` |
-| Default output dir | `ui/sidebar.py` | `DEFAULT_OUTPUT_DIR` |
-| Whisper model size | `core/transcriber.py` | `whisper.load_model("base")` |
-| Video format preference | `core/downloader.py` | `format_selector` |
-
----
-
-## 🛠️ Troubleshooting
-
-| Problem | Solution |
-|---|---|
-| `ffmpeg not found` | Install ffmpeg and ensure it's on your PATH |
-| Channel scan returns 0 videos | Try different URL formats; some channels require the `/videos` suffix |
-| Whisper takes too long | Use `"tiny"` or `"small"` model in `transcriber.py`; or install CUDA PyTorch |
-| Rate limiting / 403 errors | yt-dlp may need updating: `pip install -U yt-dlp` |
-| No transcripts found | Video may not have captions and audio extraction may fail if ffmpeg is missing |
-
----
-
-## 📦 Key Dependencies
-
-| Library | Purpose |
-|---|---|
-| `streamlit` | Web UI framework |
-| `yt-dlp` | YouTube downloader & metadata extractor |
-| `youtube-transcript-api` | Fast caption fetcher |
-| `openai-whisper` | AI offline speech-to-text |
-| `torch` | Required by Whisper |
-
----
-
-## 📄 License
-
-MIT License — free to use, modify, and distribute.
+The previous downloader UI modules remain for compatibility, but `app.py` now opens Shorts Studio.

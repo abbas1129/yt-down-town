@@ -8,10 +8,12 @@ can discover plus the subset whose view count meets the user threshold.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Callable
 from urllib.parse import urlparse, urlunparse
 
 import yt_dlp
+from core.youtube import youtube_options
 
 logger = logging.getLogger(__name__)
 
@@ -31,28 +33,25 @@ def _shorts_tab_url(channel_url: str) -> str:
     """Return the Shorts tab for a YouTube channel-like URL."""
     url = channel_url.strip()
     parsed = urlparse(url)
-    host = parsed.netloc.lower()
+    host = (parsed.hostname or "").lower()
     path = parsed.path.rstrip("/")
 
-    if "youtube.com" not in host or not _is_youtube_channel_path(path):
-        return url
+    if parsed.scheme not in {"https", "http"} or host not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+        raise ValueError("Paste a full YouTube channel link, such as https://www.youtube.com/@handle.")
 
     for suffix in ("/videos", "/shorts", "/streams", "/featured"):
         if path.endswith(suffix):
             path = path[: -len(suffix)]
             break
 
-    return urlunparse(parsed._replace(path=f"{path}/shorts", query="", fragment=""))
+    if not re.fullmatch(r"/(?:@[^/]+|(?:channel|c|user)/[^/]+)", path):
+        raise ValueError("Use a channel link, not a video or playlist link.")
+    return urlunparse(parsed._replace(scheme="https", netloc="www.youtube.com", path=f"{path}/shorts", query="", fragment=""))
 
 
 def _scan_url_candidates(channel_url: str) -> list[str]:
-    """Try the Shorts tab first, then the original URL for playlists/direct tabs."""
-    original = channel_url.strip()
-    shorts_url = _shorts_tab_url(original)
-    candidates = [shorts_url]
-    if original not in candidates:
-        candidates.append(original)
-    return candidates
+    """Never fall back to long videos when a Shorts tab is empty."""
+    return [_shorts_tab_url(channel_url)]
 
 
 def _flatten_entries(entries: list) -> list:
@@ -97,7 +96,7 @@ def _fill_missing_short_details(
     progress_callback: Callable[[str], None] | None = None,
 ) -> list[VideoMeta]:
     """Fetch full metadata for Shorts whose flat entries lack view counts."""
-    missing = [video for video in videos if not video.get("view_count")]
+    missing = [video for video in videos if video.get("view_count") is None]
     if not missing:
         return videos
 
@@ -108,8 +107,7 @@ def _fill_missing_short_details(
 
     _log(f"   Fetching details for {len(missing)} Short(s) with missing view counts...")
     detail_opts = {
-        "quiet": True,
-        "no_warnings": True,
+        **youtube_options(),
         "skip_download": True,
         "ignoreerrors": True,
     }
@@ -125,7 +123,7 @@ def _fill_missing_short_details(
             if not detail:
                 continue
 
-            video["view_count"] = detail.get("view_count") or 0
+            video["view_count"] = detail.get("view_count")
             video["duration"] = detail.get("duration") or video.get("duration")
             video["upload_date"] = detail.get("upload_date") or video.get("upload_date")
             video["thumbnail"] = detail.get("thumbnail") or video.get("thumbnail", "")
@@ -160,11 +158,10 @@ def scan_channel(
     _log("   Fetching Shorts metadata only, no media download...")
 
     ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
+        **youtube_options(),
         "extract_flat": "in_playlist",
         "skip_download": True,
-        "ignoreerrors": True,
+        "ignoreerrors": False,
         "playlistend": None,
     }
 
@@ -181,8 +178,10 @@ def scan_channel(
                 try:
                     info = ydl.extract_info(candidate_url, download=False)
                 except yt_dlp.utils.DownloadError as exc:
-                    _log(f"   Scan failed for this URL: {exc}")
-                    continue
+                    raise RuntimeError(f"Could not scan this channel. Check the link or connection: {exc}") from exc
+
+                if info is None:
+                    raise RuntimeError("YouTube returned no channel information. Please retry the scan.")
 
                 entries = _flatten_entries((info or {}).get("entries", []))
                 if entries:
@@ -195,13 +194,17 @@ def scan_channel(
 
         _log(f"   Found {len(entries)} public Short entries from: {used_url}")
 
+        seen = set()
         for entry in entries:
             video_id = entry.get("id", "")
+            if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id) or video_id in seen:
+                continue
+            seen.add(video_id)
             video_meta: VideoMeta = {
                 "id": video_id,
                 "url": _video_url_from_entry(entry),
                 "title": entry.get("title", "Untitled"),
-                "view_count": entry.get("view_count") or 0,
+                "view_count": entry.get("view_count"),
                 "duration": entry.get("duration"),
                 "upload_date": entry.get("upload_date"),
                 "thumbnail": entry.get("thumbnail", ""),
@@ -217,8 +220,11 @@ def scan_channel(
     except Exception as exc:
         raise RuntimeError(f"Unexpected error while scanning Shorts channel: {exc}") from exc
 
-    all_videos.sort(key=lambda v: v["view_count"], reverse=True)
-    qualified = [v for v in all_videos if v["view_count"] >= threshold]
+    all_videos.sort(key=lambda v: v["view_count"] or 0, reverse=True)
+    unknown = sum(v["view_count"] is None for v in all_videos)
+    if unknown:
+        _log(f"Warning: {unknown} Shorts have unknown view counts and are excluded from the filter.")
+    qualified = [v for v in all_videos if v["view_count"] is not None and v["view_count"] >= threshold]
 
     _log(f"Total public Shorts discovered: {len(all_videos)}")
     _log(f"Shorts meeting threshold ({threshold:,} views): {len(qualified)}")

@@ -15,14 +15,16 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Callable
 
 import yt_dlp
+from core.youtube import youtube_options
 
 logger = logging.getLogger(__name__)
 
-_YTDLP_CAPTIONS_RATE_LIMITED = False
+_YTDLP_CAPTIONS_RATE_LIMITED = 0.0
 _FFMPEG_AVAILABLE: bool | None = None
 _FFMPEG_PATH: str | None = None
 _WHISPER_MODEL = None
@@ -153,8 +155,8 @@ def _fetch_via_ytdlp(
     global _YTDLP_CAPTIONS_RATE_LIMITED
 
     _log = _make_logger(progress_callback)
-    if _YTDLP_CAPTIONS_RATE_LIMITED:
-        _log("   Skipping yt-dlp captions: caption requests were rate-limited earlier in this run.")
+    if time.monotonic() < _YTDLP_CAPTIONS_RATE_LIMITED:
+        _log("   Skipping yt-dlp captions during a 60-second rate-limit cooldown.")
         return None
 
     _log("   [Stage 2] Fetching captions via yt-dlp...")
@@ -163,6 +165,7 @@ def _fetch_via_ytdlp(
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         ydl_opts = {
+            **youtube_options(),
             "skip_download": True,
             "writesubtitles": True,
             "writeautomaticsub": True,
@@ -180,7 +183,7 @@ def _fetch_via_ytdlp(
         except Exception as exc:
             message = str(exc)
             if "429" in message or "Too Many Requests" in message:
-                _YTDLP_CAPTIONS_RATE_LIMITED = True
+                _YTDLP_CAPTIONS_RATE_LIMITED = time.monotonic() + 60
                 _log("   yt-dlp captions are rate-limited; skipping this method for remaining videos.")
             else:
                 _log(f"   yt-dlp captions failed: {message}")

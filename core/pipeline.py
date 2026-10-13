@@ -145,7 +145,7 @@ def run_pipeline(
         _log("─" * 60)
 
         # Sanitize the title for safe filesystem use
-        sanitized = _sanitize_filename(title)
+        sanitized = _sanitize_filename(title, max_length=80) + "_" + video_id
 
         result = ProcessedVideo(
             video_id=video_id,

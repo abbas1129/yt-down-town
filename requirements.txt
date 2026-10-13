@@ -16,13 +16,16 @@
 # =============================================================================
 
 # ── UI framework ──────────────────────────────────────────────────────────────
-streamlit>=1.35.0
+streamlit>=1.58.0,<2
 
 # ── YouTube download & metadata extraction ────────────────────────────────────
-yt-dlp>=2024.1.1
+yt-dlp[default]>=2026.6.9
 
 # ── Direct YouTube transcript fetcher ─────────────────────────────────────────
-youtube-transcript-api>=0.6.2
+youtube-transcript-api>=1.2.4,<2
+
+# ElevenLabs HTTPS client
+requests>=2.32.4,<3
 
 # ── AI transcription fallback ─────────────────────────────────────────────────
 openai-whisper>=20231117
