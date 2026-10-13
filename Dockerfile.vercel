@@ -1,0 +1,20 @@
+FROM node:24-bookworm-slim AS node
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 SHORTS_STUDIO_CLOUD=1 \
+    XDG_CACHE_HOME=/opt/cache OMP_NUM_THREADS=1
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+WORKDIR /app
+COPY requirements.txt .
+# Install CPU wheels first so the Linux build does not bundle CUDA libraries.
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
+    && pip install -r requirements.txt
+RUN python -c "import whisper; whisper.load_model('tiny')"
+COPY app.py .
+COPY core ./core
+COPY ui ./ui
+COPY .streamlit/config.toml ./.streamlit/config.toml
+EXPOSE 80
+CMD ["sh", "-c", "exec python -m streamlit run app.py --server.address=0.0.0.0 --server.port=${PORT:-80} --server.headless=true --server.maxUploadSize=4"]

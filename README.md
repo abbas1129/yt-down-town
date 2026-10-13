@@ -1,5 +1,18 @@
 # Shorts Studio
 
+## Vercel hosting
+
+`Dockerfile.vercel` packages Streamlit, FFmpeg, Node.js, CPU PyTorch and the
+Whisper tiny model. `vercel.json` overrides the Python API framework preset.
+Deployment excludes local downloads, environment files and credentials.
+
+The hosted interface uses a separate temporary workspace for each browser session.
+Download results before leaving: files are not persistent across restarts or
+instance changes. Face-cam uploads are limited to 4 MB on this initial hosting
+configuration. Persistent cloud storage and larger direct uploads require a
+separate storage integration. Local operation retains its existing saved folders
+and 200 MB upload limit.
+
 A local Streamlit workflow for turning selected YouTube Shorts into narrated videos with your face-cam.
 
 ## Workflow

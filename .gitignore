@@ -11,3 +11,6 @@ downloads/
 
 .streamlit/secrets.toml
 .env
+
+.vercel
+.env*

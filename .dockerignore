@@ -1,0 +1,10 @@
+**
+!Dockerfile.vercel
+!requirements.txt
+!app.py
+!core/
+!core/*.py
+!ui/
+!ui/*.py
+!.streamlit/
+!.streamlit/config.toml

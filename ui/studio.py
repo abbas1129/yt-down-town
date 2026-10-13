@@ -1,6 +1,8 @@
 """Shorts → transcript → ElevenLabs voice → face-cam composition."""
 from __future__ import annotations
 import os
+import tempfile
+import uuid
 from pathlib import Path
 import streamlit as st
 from core.media import LAYOUTS, find_ffmpeg, probe
@@ -20,8 +22,13 @@ def _settings():
     with st.sidebar:
         st.title("Shorts Studio")
         st.caption("Discover → prepare → voice → compose")
-        output = st.text_input("Project folder", str(DEFAULT_ROOT), key="studio_root")
-        root = Path(output).expanduser().resolve()
+        if os.getenv("SHORTS_STUDIO_CLOUD") == "1":
+            session = st.session_state.setdefault("cloud_workspace", uuid.uuid4().hex)
+            root = Path(tempfile.gettempdir()) / "shorts-studio" / session
+            st.info("Online session: download your results before leaving. Working files are temporary and may disappear when the server restarts. Face-cam uploads are limited to 4 MB.")
+        else:
+            output = st.text_input("Project folder", str(DEFAULT_ROOT), key="studio_root")
+            root = Path(output).expanduser().resolve()
         with st.expander("ElevenLabs voice settings", expanded=True):
             api_key = st.text_input("API key", value=os.getenv("ELEVENLABS_API_KEY", ""), type="password", key="eleven_key")
             voice_id = st.text_input("Voice ID", value=os.getenv("ELEVENLABS_VOICE_ID", ""), key="eleven_voice")
