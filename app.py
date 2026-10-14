@@ -25,11 +25,12 @@ st.set_page_config(
 # Local module imports
 # ---------------------------------------------------------------------------
 from ui.studio import render_studio
-from ui.styles import inject_custom_css
+from ui.styles import inject_custom_css, inject_vercel_analytics
 
 # ---------------------------------------------------------------------------
 # Bootstrap
 # ---------------------------------------------------------------------------
+inject_vercel_analytics()
 inject_custom_css()
 
 # ---------------------------------------------------------------------------
