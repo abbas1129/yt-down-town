@@ -9,6 +9,16 @@ Custom CSS injected into Streamlit's HTML for a premium dark-mode look.
 import streamlit as st
 
 
+def inject_vercel_analytics() -> None:
+    """Inject Vercel Web Analytics script into the Streamlit page."""
+    st.markdown(
+        """
+        <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def inject_custom_css() -> None:
     """Inject the full custom CSS stylesheet into the Streamlit page."""
     st.markdown(
